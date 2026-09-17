@@ -206,10 +206,3 @@ with col_ana:
             except Exception as e:
                 st.error(f"Hata: {e}")
 
-    st.markdown("<br>", unsafe_allow_html=True)
-    col_kedi_sol, col_kedi_sag = st.columns([1, 1])
-    with col_kedi_sag:
-        try:
-            st.image("pccat.png", width=180)
-        except:
-            pass
