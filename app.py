@@ -63,7 +63,7 @@ with col_baslik2:
 
 with col_baslik3:
     try:
-        st.image("r2.jpg", use_container_width=True)  # Mühendis kedi
+        st.image("nazar.png", use_container_width=True)  # Mühendis kedi
     except:
         pass
 
@@ -74,7 +74,7 @@ col_sol, col_orta, col_sag = st.columns([1, 2, 1])
 
 with col_sol:
     try:
-        st.image("r3.jpg", use_container_width=True)  # Kod yazan Esmanur
+        st.image("divacat.png", use_container_width=True)  # Kod yazan Esmanur
     except:
         pass
 
@@ -152,8 +152,8 @@ with col_orta:
 
 with col_sag:
     try:
-        st.image("r4.jpg", use_container_width=True)  # Esmanur portre
+        st.image("codecat.png", use_container_width=True)  # Esmanur portre
         st.write("")  # Boşluk
-        st.image("Bratz.jpg", use_container_width=True)  # PC başındaki kedi
+        st.image("Bratz.png", use_container_width=True)  # PC başındaki kedi
     except:
         pass
