@@ -49,6 +49,11 @@ st.markdown("""
         background-color: #E91E63 !important;
         box-shadow: 0px 4px 10px rgba(233, 30, 99, 0.4);
     }
+
+    /* Sağ üstteki menüyü, alt bilgiyi ve üst boşluğu gizle */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
     </style>
 """, unsafe_allow_html=True)
 
