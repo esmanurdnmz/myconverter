@@ -4,156 +4,207 @@ import os
 import tempfile
 import zipfile
 from io import BytesIO
+import platform
 
-# Sayfa ayarları (Geniş ekran ve tatlı bir ikon)
-st.set_page_config(page_title="Engineer Diva - Sınırsız Çevirici", page_icon="🎀", layout="wide")
+try:
+    from PyPDF2 import PdfMerger, PdfReader, PdfWriter
+except ImportError:
+    st.error("Lütfen terminalde 'pip install PyPDF2' çalıştırın.")
 
-# CSS ile Soft Pembe Arka Plan ve Özel Tasarım
+st.set_page_config(page_title="Engineer Diva - PDF İstasyonu", page_icon="🎀", layout="wide")
+
+# CSS ile Yazı Renklerini Düzeltme ve Arka Planı Ayarlama
 st.markdown("""
     <style>
-    /* Tüm sayfanın arka planını soft pudra pembesi yap */
     .stApp {
-        background-color: #FFE4E1; 
+        background-color: #FCE4EC; /* Soft Pudra Pembe */
     }
 
-    /* Yazı tipleri ve renkleri */
-    .baslik {
+    p, label, .stSelectbox label, .stFileUploader label, li, span {
+        color: #880E4F !important;
+        font-weight: 600;
+    }
+    h1, h2, h3 {
+        color: #D81B60 !important;
         font-family: 'Courier New', Courier, monospace;
-        color: #D2386C;
         text-align: center;
         font-weight: bold;
     }
 
-    /* Yükleme alanının çerçevesi */
-    .stFileUploader {
+    .stFileUploader > div > div {
+        background-color: #F8BBD0;
         border-radius: 15px;
-        background-color: #FFF0F5;
-        padding: 10px;
+        border: 2px dashed #D81B60;
     }
 
-    /* Dönüştür Butonu Tasarımı */
-    div.stButton > button:first-child {
-        background-color: #FF69B4;
-        color: white;
+    div.stButton > button {
+        background-color: #F06292 !important;
+        color: white !important;
         border-radius: 20px;
-        border: 2px solid #FF1493;
-        padding: 10px 30px;
-        font-weight: bold;
+        border: 2px solid #E91E63 !important;
         width: 100%;
+        padding: 10px;
     }
-    div.stButton > button:first-child:hover {
-        background-color: #FF1493;
-        border-color: #C71585;
+    div.stButton > button:hover {
+        background-color: #E91E63 !important;
+        box-shadow: 0px 4px 10px rgba(233, 30, 99, 0.4);
     }
     </style>
 """, unsafe_allow_html=True)
 
-# Üst Kısım: Başlık ve Süsleme Resimleri
-col_baslik1, col_baslik2, col_baslik3 = st.columns([1, 2, 1])
+# Sayfayı kolonlara bölerek resimleri dağınık yerleştirme
+col1, col2, col_ana, col4, col5 = st.columns([1, 1, 4, 1, 1])
 
-with col_baslik1:
+# Sol taraftaki dağınık resimler
+with col1:
+    st.markdown("<br><br>", unsafe_allow_html=True)
     try:
-        st.image("r1.jpg", use_container_width=True)  # Piksel kedi
+        st.image("Bratz.png", use_container_width=True)
     except:
         pass
 
-with col_baslik2:
-    st.markdown("<h1 class='baslik'>✨ @engineerdivaesmanur ✨</h1>", unsafe_allow_html=True)
-    st.markdown("<h3 class='baslik'>Tatlı Sınırsız Format Dönüştürücüsü 💖</h3>", unsafe_allow_html=True)
-
-with col_baslik3:
+with col2:
+    st.markdown("<br><br><br><br><br>", unsafe_allow_html=True)
     try:
-        st.image("nazar.png", use_container_width=True)  # Mühendis kedi
+        st.image("codecat.png", use_container_width=True)
     except:
         pass
 
-st.write("---")
-
-# Orta Kısım: Ana İşlem ve Diğer Resimler
-col_sol, col_orta, col_sag = st.columns([1, 2, 1])
-
-with col_sol:
+# Sağ taraftaki dağınık resimler
+with col4:
+    st.markdown("<br>", unsafe_allow_html=True)
     try:
-        st.image("divacat.png", use_container_width=True)  # Kod yazan Esmanur
+        st.image("divacat.png", use_container_width=True)
     except:
         pass
 
-with col_orta:
-    # 1. Hangi formata çevrileceğini seçtirme
-    target_format = st.selectbox(
-        "Hangi formata çevirmek istersin?",
-        ["pdf", "docx", "odt", "txt", "html"]
-    )
-
-    # 2. Dosya yükleme alanı (Tüm dosya tiplerine açık ve çoklu yükleme aktif)
-    uploaded_files = st.file_uploader(
-        "Dosyalarını buraya bırak tatlım 🌸 (Word, Excel, PowerPoint, Metin vb.)",
-        accept_multiple_files=True
-    )
-
-    if uploaded_files:
-        if st.button("💖 Sihirli Çeviriyi Başlat 💖"):
-            with st.spinner("Arka planda sihir gerçekleşiyor, lütfen bekle... ✨"):
-                with tempfile.TemporaryDirectory() as temp_dir:
-                    converted_files = []
-
-                    # 3. Yüklenen tüm dosyaları tek tek döngüye alıp çevirme
-                    for uploaded_file in uploaded_files:
-                        input_path = os.path.join(temp_dir, uploaded_file.name)
-
-                        with open(input_path, "wb") as f:
-                            f.write(uploaded_file.getbuffer())
-
-                        command = [
-                            "libreoffice", "--headless", "--convert-to", target_format,
-                            input_path, "--outdir", temp_dir
-                        ]
-
-                        try:
-                            subprocess.run(command, check=True, capture_output=True)
-
-                            pdf_filename = uploaded_file.name.rsplit('.', 1)[0] + f".{target_format}"
-                            pdf_path = os.path.join(temp_dir, pdf_filename)
-
-                            if os.path.exists(pdf_path):
-                                converted_files.append((pdf_filename, pdf_path))
-                            else:
-                                st.error(
-                                    f"❌ {uploaded_file.name} dönüştürülemedi. (Altyapı bu formatı desteklemiyor olabilir)")
-                        except Exception as e:
-                            st.error(f"Sistemsel bir hata oluştu: {e}")
-
-                    # 4. Çıktıları kullanıcıya sunma
-                    if len(converted_files) == 1:
-                        # Tek dosya ise doğrudan indir
-                        filename, path = converted_files[0]
-                        with open(path, "rb") as f:
-                            st.success("🎉 Ta-da! Dosyan hazır!")
-                            st.download_button(
-                                label=f"🎀 {filename} İndir 🎀",
-                                data=f.read(),
-                                file_name=filename,
-                                mime="application/octet-stream"
-                            )
-                    elif len(converted_files) > 1:
-                        # Birden fazla dosya ise ZIP oluştur
-                        zip_buffer = BytesIO()
-                        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-                            for filename, path in converted_files:
-                                zip_file.write(path, filename)
-
-                        st.success("🎉 Tüm dosyaların başarıyla çevrildi ve birleştirildi!")
-                        st.download_button(
-                            label="🎀 Tümünü ZIP Olarak İndir 🎀",
-                            data=zip_buffer.getvalue(),
-                            file_name="Diva_Ceviriler.zip",
-                            mime="application/zip"
-                        )
-
-with col_sag:
+with col5:
+    st.markdown("<br><br><br><br>", unsafe_allow_html=True)
     try:
-        st.image("codecat.png", use_container_width=True)  # Esmanur portre
-        st.write("")  # Boşluk
-        st.image("Bratz.png", use_container_width=True)  # PC başındaki kedi
+        st.image("nazar.png", use_container_width=True)
     except:
         pass
+
+# ORTA ALAN: Ana Uygulama Sekmeleri
+with col_ana:
+    st.markdown("<h1>✨ @engineerdivaesmanur ✨</h1>", unsafe_allow_html=True)
+    st.markdown("<h3>Tatlı PDF İstasyonu 💖</h3>", unsafe_allow_html=True)
+
+    # Araçları sekmelere ayırıyoruz
+    tab1, tab2, tab3, tab4 = st.tabs(["🔄 Office ↔ PDF", "🖼️ PDF ↔ JPG", "➕ PDF Birleştir", "✂️ PDF Ayır"])
+
+
+    # Yardımcı Fonksiyon: LibreOffice Dönüşümü (Word/Excel/PPT <-> PDF)
+    def convert_with_libreoffice(uploaded_files, target_format):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            converted_files = []
+            lo_cmd = "/Applications/LibreOffice.app/Contents/MacOS/soffice" if platform.system() == "Darwin" else "libreoffice"
+
+            for uploaded_file in uploaded_files:
+                input_path = os.path.join(temp_dir, uploaded_file.name)
+                with open(input_path, "wb") as f:
+                    f.write(uploaded_file.getbuffer())
+
+                command = [lo_cmd, "--headless", "--convert-to", target_format, input_path, "--outdir", temp_dir]
+                try:
+                    subprocess.run(command, check=True, capture_output=True)
+                    out_filename = uploaded_file.name.rsplit('.', 1)[0] + f".{target_format}"
+                    out_path = os.path.join(temp_dir, out_filename)
+                    if os.path.exists(out_path):
+                        with open(out_path, "rb") as f:
+                            converted_files.append((out_filename, f.read()))
+                except FileNotFoundError:
+                    st.error("❌ LibreOffice bulunamadı. Lütfen sunucuda yüklü olduğundan emin olun.")
+                    break
+                except Exception as e:
+                    st.error(f"Hata: {e}")
+            return converted_files
+
+
+    # --- ARAÇ 1: OFFICE <-> PDF ---
+    with tab1:
+        st.info("Word, Excel, PowerPoint dosyalarını PDF'e veya PDF'i bu formatlara çevir.")
+        conversion_type = st.selectbox("İşlemi seç:", [
+            "Word'den PDF'e (docx -> pdf)",
+            "PowerPoint'ten PDF'e (pptx -> pdf)",
+            "Excel'den PDF'e (xlsx -> pdf)",
+            "PDF'den Word'e (pdf -> docx)",
+            "PDF'den PowerPoint'e (pdf -> pptx)",
+            "PDF'den Excel'e (pdf -> xlsx)"
+        ])
+
+        target_ext = conversion_type.split("->")[1].strip().replace(")", "")
+        up_files_office = st.file_uploader("Dosyaları yükle 🌸", accept_multiple_files=True, key="offc")
+
+        if up_files_office and st.button("💖 Dönüştür 💖", key="btn_offc"):
+            with st.spinner("İşleniyor... ✨"):
+                results = convert_with_libreoffice(up_files_office, target_ext)
+                for filename, data in results:
+                    st.download_button(f"🎀 {filename} İndir", data, file_name=filename)
+
+    # --- ARAÇ 2: PDF <-> JPG ---
+    with tab2:
+        st.info(
+            "PDF sayfalarını resme dönüştür veya resimleri PDF yap. (Not: PDF'den resme çeviri için sunucuda ImageMagick gerekebilir, resimden PDF'e çeviri LibreOffice ile yapılır)")
+        img_conv_type = st.selectbox("İşlemi seç:", [
+            "JPG'den PDF'e (jpg/png -> pdf)"
+        ])
+
+        up_files_img = st.file_uploader("Resimleri yükle 🌸", type=["jpg", "jpeg", "png"], accept_multiple_files=True,
+                                        key="img")
+
+        if up_files_img and st.button("💖 PDF'e Çevir 💖", key="btn_img"):
+            with st.spinner("Resimler birleştiriliyor... ✨"):
+                results = convert_with_libreoffice(up_files_img, "pdf")
+                for filename, data in results:
+                    st.download_button(f"🎀 {filename} İndir", data, file_name=filename)
+
+    # --- ARAÇ 3: BİRLEŞTİRİCİ ---
+    with tab3:
+        st.info("İstediğin sırada PDF'leri birleştir.")
+        merge_files = st.file_uploader("Birleştirilecek PDF'leri yükle", type=["pdf"], accept_multiple_files=True,
+                                       key="mrg")
+
+        if merge_files and st.button("💖 PDF'leri Birleştir 💖"):
+            try:
+                merger = PdfMerger()
+                for pdf in merge_files:
+                    merger.append(pdf)
+                output_pdf = BytesIO()
+                merger.write(output_pdf)
+                merger.close()
+                st.success("🎉 Başarıyla birleştirildi!")
+                st.download_button("🎀 Birleşik PDF'i İndir", output_pdf.getvalue(), file_name="Diva_Birlesik.pdf",
+                                   mime="application/pdf")
+            except Exception as e:
+                st.error(f"Hata: {e}")
+
+    # --- ARAÇ 4: AYIRICI ---
+    with tab4:
+        st.info("PDF'i bağımsız sayfalara ayır (ZIP olarak indirilir).")
+        split_file = st.file_uploader("Ayrılacak PDF'i yükle", type=["pdf"], key="splt")
+
+        if split_file and st.button("💖 Sayfalara Ayır 💖"):
+            try:
+                reader = PdfReader(split_file)
+                zip_buffer = BytesIO()
+                with zipfile.ZipFile(zip_buffer, "w") as zip_file:
+                    for i in range(len(reader.pages)):
+                        writer = PdfWriter()
+                        writer.add_page(reader.pages[i])
+                        page_buffer = BytesIO()
+                        writer.write(page_buffer)
+                        zip_file.writestr(f"Sayfa_{i + 1}.pdf", page_buffer.getvalue())
+                st.success(f"🎉 {len(reader.pages)} sayfa ayrıldı!")
+                st.download_button("🎀 Sayfaları ZIP İndir", zip_buffer.getvalue(), file_name="Diva_Sayfalar.zip",
+                                   mime="application/zip")
+            except Exception as e:
+                st.error(f"Hata: {e}")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    col_kedi_sol, col_kedi_sag = st.columns([1, 1])
+    with col_kedi_sag:
+        try:
+            st.image("pccat.png", width=180)
+        except:
+            pass
