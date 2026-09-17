@@ -127,25 +127,60 @@ with col_ana:
 
 
     # --- ARAÇ 1: OFFICE <-> PDF ---
-    with tab1:
-        st.info("Word, Excel, PowerPoint dosyalarını PDF'e veya PDF'i bu formatlara çevir.")
-        conversion_type = st.selectbox("İşlemi seç:", [
-            "Word'den PDF'e (docx -> pdf)",
-            "PowerPoint'ten PDF'e (pptx -> pdf)",
-            "Excel'den PDF'e (xlsx -> pdf)",
-            "PDF'den Word'e (pdf -> docx)",
-            "PDF'den PowerPoint'e (pdf -> pptx)",
-            "PDF'den Excel'e (pdf -> xlsx)"
-        ])
+        # --- ARAÇ 1: OFFICE <-> PDF ---
+      with tab1:
+            st.info("Word, Excel, PowerPoint dosyalarını PDF'e veya PDF'i bu formatlara çevir.")
+            conversion_type = st.selectbox("İşlemi seç:", [
+                "Word'den PDF'e (docx -> pdf)",
+                "PowerPoint'ten PDF'e (pptx -> pdf)",
+                "Excel'den PDF'e (xlsx -> pdf)",
+                "PDF'den Word'e (pdf -> docx)"
+            ])
 
-        target_ext = conversion_type.split("->")[1].strip().replace(")", "")
-        up_files_office = st.file_uploader("Dosyaları yükle 🌸", accept_multiple_files=True, key="offc")
+            target_ext = conversion_type.split("->")[1].strip().replace(")", "")
+            source_ext = conversion_type.split("->")[0].split("(")[1].strip()
 
-        if up_files_office and st.button("💖 Dönüştür 💖", key="btn_offc"):
-            with st.spinner("İşleniyor... ✨"):
-                results = convert_with_libreoffice(up_files_office, target_ext)
-                for filename, data in results:
-                    st.download_button(f"🎀 {filename} İndir", data, file_name=filename)
+            up_files_office = st.file_uploader("Dosyaları yükle 🌸", accept_multiple_files=True, key="offc")
+
+            if up_files_office and st.button("💖 Dönüştür 💖", key="btn_offc"):
+                with st.spinner("İşleniyor... ✨"):
+                    with tempfile.TemporaryDirectory() as temp_dir:
+                        converted_files = []
+                        lo_cmd = "/Applications/LibreOffice.app/Contents/MacOS/soffice" if platform.system() == "Darwin" else "libreoffice"
+
+                        for uploaded_file in up_files_office:
+                            input_path = os.path.join(temp_dir, uploaded_file.name)
+                            with open(input_path, "wb") as f:
+                                f.write(uploaded_file.getbuffer())
+
+                            out_filename = uploaded_file.name.rsplit('.', 1)[0] + f".{target_ext}"
+                            out_path = os.path.join(temp_dir, out_filename)
+
+                            try:
+                                # PDF'den Word'e özel durum (pdf2docx kütüphanesi kullanılır)
+                                if source_ext == "pdf" and target_ext == "docx":
+                                    from pdf2docx import Converter
+                                    cv = Converter(input_path)
+                                    cv.convert(out_path, start=0, end=None)
+                                    cv.close()
+                                    if os.path.exists(out_path):
+                                        with open(out_path, "rb") as f:
+                                            converted_files.append((out_filename, f.read()))
+
+                                # Diğer her şey (Word/Excel/PPT -> PDF) LibreOffice ile yapılır
+                                else:
+                                    command = [lo_cmd, "--headless", "--convert-to", target_ext, input_path, "--outdir",
+                                               temp_dir]
+                                    subprocess.run(command, check=True, capture_output=True)
+                                    if os.path.exists(out_path):
+                                        with open(out_path, "rb") as f:
+                                            converted_files.append((out_filename, f.read()))
+                            except Exception as e:
+                                st.error(f"❌ {uploaded_file.name} dönüştürülürken hata: {e}")
+
+                        # İndirme Butonları
+                        for filename, data in converted_files:
+                            st.download_button(f"🎀 {filename} İndir", data, file_name=filename)
 
     # --- ARAÇ 2: PDF <-> JPG ---
     with tab2:
