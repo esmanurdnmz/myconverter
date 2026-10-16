@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Engineer Diva PDF İstasyonu</title>
+    <style>
+        body {
+            font-family: 'Courier New', Courier, monospace;
+            background-color: #FCE4EC;
+            color: #880E4F;
+            margin: 0; padding: 20px;
+            display: flex; flex-direction: column; align-items: center;
+        }
+        h1, h2 { color: #D81B60; text-align: center; }
+        .container {
+            width: 100%; max-width: 800px;
+            background-color: #F8BBD0;
+            padding: 30px; border-radius: 20px;
+            box-shadow: 0 10px 20px rgba(216, 27, 96, 0.2);
+            border: 2px dashed #D81B60;
+            margin-top: 20px;
+        }
+        .controls {
+            display: flex; flex-direction: column; gap: 15px; margin-bottom: 20px;
+        }
+        select, button {
+            padding: 15px; font-size: 16px; font-weight: bold;
+            border-radius: 10px; border: 2px solid #E91E63;
+            background-color: white; color: #880E4F; cursor: pointer;
+        }
+        button {
+            background-color: #F06292; color: white; transition: 0.3s;
+        }
+        button:hover { background-color: #E91E63; }
+
+        .drop-zone {
+            border: 3px dashed #E91E63; border-radius: 15px;
+            padding: 40px; text-align: center; background-color: #fff0f5;
+            cursor: pointer; transition: 0.3s; margin-bottom: 20px;
+        }
+        .drop-zone.dragover { background-color: #f8bbd0; }
+
+        #file-list { margin-bottom: 20px; font-weight: bold; line-height: 1.8; }
+        .file-item {
+            display: flex; justify-content: space-between; align-items: center;
+            background: rgba(255, 255, 255, 0.7); padding: 5px 10px; border-radius: 5px; margin-bottom: 5px;
+        }
+        .remove-file {
+            color: #d32f2f; cursor: pointer; font-weight: bold; border: none; background: none; font-size: 16px;
+        }
+
+        .progress-wrapper { display: none; margin-top: 20px; }
+        .progress-bar { width: 100%; background-color: #fce4ec; border-radius: 10px; overflow: hidden; border: 1px solid #D81B60; }
+        .progress-fill { width: 0%; height: 20px; background-color: #E91E63; transition: width 0.5s; }
+        .status-text { text-align: center; margin-top: 10px; font-weight: bold; }
+
+        .alert { display: none; padding: 15px; background-color: #ffcdd2; color: #b71c1c; border-radius: 10px; margin-bottom: 20px; text-align: center; font-weight: bold;}
+    </style>
+</head>
+<body>
+
+    <h1>✨ @engineerdivaesmanur ✨</h1>
+    <h2>Tatlı PDF İstasyonu 💖</h2>
+
+    <div class="container">
+        <div class="alert" id="error-alert">Hata mesajı burada görünecek.</div>
+
+        <div class="controls">
+            <select id="action-select">
+                <option value="office_to_pdf">Word, Excel, PPTX ➡️ PDF</option>
+                <option value="pdf_to_word">PDF ➡️ Word</option>
+                <option value="img_to_pdf">Resim (JPG/PNG) ➡️ PDF</option>
+                <option value="merge_pdf">PDF'leri Birleştir</option>
+                <option value="split_pdf">PDF'i Sayfalara Ayır</option>
+            </select>
+        </div>
+
+        <div class="drop-zone" id="drop-zone">
+            <p>🌸 Dosyaları Buraya Sürükle ve Bırak ya da Seçmek İçin Tıkla 🌸</p>
+            <input type="file" id="file-input" multiple style="display: none;">
+        </div>
+
+        <div id="file-list">Henüz dosya seçilmedi.</div>
+
+        <button id="submit-btn">💖 Sihirli İşlemi Başlat 💖</button>
+
+        <div class="progress-wrapper" id="progress-wrapper">
+            <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+            <div class="status-text" id="status-text">Sihir gerçekleşiyor, lütfen bekle... ✨</div>
+        </div>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const fileList = document.getElementById('file-list');
+        const submitBtn = document.getElementById('submit-btn');
+        const actionSelect = document.getElementById('action-select');
+        const progressWrapper = document.getElementById('progress-wrapper');
+        const progressFill = document.getElementById('progress-fill');
+        const errorAlert = document.getElementById('error-alert');
+
+        let dataTransfer = new DataTransfer();
+
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault(); dropZone.classList.remove('dragover');
+            addFiles(e.dataTransfer.files);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            addFiles(e.target.files);
+        });
+
+        function addFiles(files) {
+            for (let file of files) {
+                dataTransfer.items.add(file);
+            }
+            fileInput.files = dataTransfer.files;
+            updateFileList();
+            errorAlert.style.display = 'none';
+        }
+
+        function removeFile(index) {
+            let dt = new DataTransfer();
+            let files = fileInput.files;
+            for (let i = 0; i < files.length; i++) {
+                if (i !== index) {
+                    dt.items.add(files[i]);
+                }
+            }
+            dataTransfer = dt;
+            fileInput.files = dataTransfer.files;
+            updateFileList();
+            errorAlert.style.display = 'none';
+        }
+
+        function updateFileList() {
+            if (fileInput.files.length === 0) {
+                fileList.innerHTML = "Henüz dosya seçilmedi.";
+                return;
+            }
+            let html = "";
+            for (let i = 0; i < fileInput.files.length; i++) {
+                html += `<div class="file-item"><span>📄 ${fileInput.files[i].name}</span> <button class="remove-file" onclick="removeFile(${i})">❌</button></div>`;
+            }
+            fileList.innerHTML = html;
+        }
+
+        submitBtn.addEventListener('click', async () => {
+            if (fileInput.files.length === 0) {
+                errorAlert.innerText = "Lütfen önce dosya yükle 🌸";
+                errorAlert.style.display = 'block';
+                return;
+            }
+
+            const action = actionSelect.value;
+            const files = fileInput.files;
+
+            // Basit tür kontrolü
+            for (let file of files) {
+                let name = file.name.toLowerCase();
+                if (action === 'pdf_to_word' || action === 'split_pdf' || action === 'merge_pdf') {
+                    if (!name.endsWith('.pdf')) {
+                        errorAlert.innerText = `Hata: "${file.name}" bir PDF dosyası değil! Seçilen işlem için sadece PDF yüklemelisin.`;
+                        errorAlert.style.display = 'block';
+                        return;
+                    }
+                } else if (action === 'img_to_pdf') {
+                    if (!name.endsWith('.jpg') && !name.endsWith('.jpeg') && !name.endsWith('.png')) {
+                        errorAlert.innerText = `Hata: "${file.name}" bir resim (JPG/PNG) dosyası değil!`;
+                        errorAlert.style.display = 'block';
+                        return;
+                    }
+                }
+            }
+
+            const formData = new FormData();
+            formData.append('action', action);
+            for (let file of files) {
+                formData.append('files', file);
+            }
+
+            progressWrapper.style.display = 'block';
+            progressFill.style.width = '50%';
+            errorAlert.style.display = 'none';
+            submitBtn.disabled = true;
+
+            try {
+                const response = await fetch('/process', { method: 'POST', body: formData });
+
+                if (!response.ok) {
+                    let errorMessage = "Bir hata oluştu.";
+                    try {
+                        const errorData = await response.json();
+                        errorMessage = errorData.error || errorMessage;
+                    } catch (e) {
+                        errorMessage = response.status === 413 ? "Dosya boyutu çok büyük (Maks: 500 MB)." : "Sunucu hatası oluştu.";
+                    }
+                    throw new Error(errorMessage);
+                }
+
+                progressFill.style.width = '100%';
+
+                const blob = await response.blob();
+                const downloadUrl = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+
+                const disposition = response.headers.get('Content-Disposition');
+                let filename = "Diva_Sonuc.pdf";
+                if (disposition && disposition.indexOf('filename=') !== -1) {
+                    filename = disposition.split('filename=')[1].replace(/"/g, '');
+                }
+
+                a.href = downloadUrl;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+
+                document.getElementById('status-text').innerText = "🎉 İşlem Tamamlandı! Dosyan iniyor...";
+
+            } catch (error) {
+                errorAlert.innerText = error.message;
+                errorAlert.style.display = 'block';
+                progressWrapper.style.display = 'none';
+            } finally {
+                submitBtn.disabled = false;
+                setTimeout(() => { progressWrapper.style.display = 'none'; progressFill.style.width = '0%'; document.getElementById('status-text').innerText = "Sihir gerçekleşiyor, lütfen bekle... ✨"; }, 3000);
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,3 +1,5 @@
-streamlit
+Flask
+Werkzeug
 PyPDF2
 pdf2docx
+Pillow
