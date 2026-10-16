@@ -120,9 +120,14 @@ def process_files():
             elif action == 'office_to_pdf':
                 lo_path = get_libreoffice_cmd()
                 # LibreOffice kontrolü
-                if platform.system() == "Darwin" and not os.path.exists(lo_path):
+                cmd = [lo_path, "--headless", "--convert-to", "pdf", input_path, "--outdir", temp_dir]
+                try:
+                    subprocess.run(cmd, check=True, capture_output=True, timeout=80)
+                except subprocess.TimeoutExpired:
                     return jsonify({
-                                       "error": "Bilgisayarınızda (Mac) LibreOffice yüklü değil! Terminale 'brew install --cask libreoffice' yazarak kurabilirsiniz."}), 400
+                                       "error": "Sunum dosyasını dönüştürmek çok uzun sürdü. Lütfen sunumdaki yüksek çözünürlüklü görselleri küçültüp tekrar deneyin."}), 400
+                except subprocess.CalledProcessError as cpe:
+                    return jsonify({"error": "Dosya dönüştürülürken bir hata oluştu."}), 500
 
                 if len(files) > 1:
                     with zipfile.ZipFile(memory_file, "w") as zip_file:

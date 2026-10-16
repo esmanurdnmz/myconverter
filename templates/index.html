@@ -244,7 +244,25 @@
 
             try {
                 const response = await fetch('/process', { method: 'POST', body: formData });
-                if (!response.ok) { const errorData = await response.json(); throw new Error(errorData.error || "Sunucu hatası."); }
+                if (!response.ok) {
+    let errorMessage = "Sunucu hatası oluştu.";
+    try {
+        const text = await response.text();
+        try {
+            const errorData = JSON.parse(text);
+            errorMessage = errorData.error || errorMessage;
+        } catch(e) {
+            if (response.status === 504 || response.status === 502) {
+                errorMessage = "İşlem çok uzun sürdü (Zaman Aşımı)! Lütfen sunum içerisindeki resimlerin boyutunu küçültüp tekrar deneyin. 🌸";
+            } else if (response.status === 413) {
+                errorMessage = "Dosya boyutu çok büyük (Maks: 500 MB).";
+            } else {
+                errorMessage = "Sunucu yanıt vermedi, lütfen tekrar deneyin.";
+            }
+        }
+    } catch (e) {}
+    throw new Error(errorMessage);
+}
 
                 progressFill.style.width = '100%';
                 const blob = await response.blob();
