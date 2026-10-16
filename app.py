@@ -11,6 +11,7 @@ from PyPDF2 import PdfMerger, PdfReader, PdfWriter
 from pdf2docx import Converter
 from PIL import Image
 import convertapi
+from pptx import Presentation
 
 # Uyarı mesajlarını gizle
 warnings.filterwarnings("ignore")
@@ -31,7 +32,7 @@ def get_libreoffice_cmd():
 
 
 def convert_office_to_pdf_local(input_path, temp_dir):
-    """API çalışmadığında veya anahtar olmadığında devreye giren yerel motor."""
+    """API çalışmadığında veya anahtar tanımlanmadığında devreye giren yerel motor."""
     lo_path = get_libreoffice_cmd()
     cmd = [
         lo_path, "--headless", "--norestore", "--nofirststartwizard",
@@ -92,6 +93,49 @@ def process_files():
                             writer.write(page_buffer)
                             zip_file.writestr(f"{base_name}_Sayfa_{i + 1}.pdf", page_buffer.getvalue())
                 output_filename = "Diva_Ayrik_Sayfalar.zip"
+                mimetype = "application/zip"
+
+            elif action == 'split_pptx':
+                try:
+                    chunk_size = int(request.form.get('chunk_size', 20))
+                    if chunk_size < 1:
+                        chunk_size = 20
+                except ValueError:
+                    chunk_size = 20
+
+                with zipfile.ZipFile(memory_file, "w") as zip_file:
+                    for file in files:
+                        in_pptx_path = os.path.join(temp_dir, secure_filename(file.filename))
+                        file.save(in_pptx_path)
+                        base_name = os.path.splitext(secure_filename(file.filename))[0]
+
+                        prs = Presentation(in_pptx_path)
+                        total_slides = len(prs.slides)
+                        if total_slides == 0:
+                            continue
+
+                        part_num = 1
+                        for start_idx in range(0, total_slides, chunk_size):
+                            prs_chunk = Presentation(in_pptx_path)
+                            end_idx = min(start_idx + chunk_size, total_slides)
+
+                            # Belirlenen aralık dışındaki slaytları sondan başa doğru sil
+                            for i in range(len(prs_chunk.slides) - 1, -1, -1):
+                                if not (start_idx <= i < end_idx):
+                                    rId = prs_chunk.slides._sldIdLst[i].rId
+                                    prs_chunk.part.drop_rel(rId)
+                                    del prs_chunk.slides._sldIdLst[i]
+
+                            chunk_filename = f"{base_name}_Parca_{part_num}_Slayt_{start_idx + 1}-{end_idx}.pptx"
+                            chunk_path = os.path.join(temp_dir, chunk_filename)
+                            prs_chunk.save(chunk_path)
+
+                            with open(chunk_path, "rb") as f:
+                                zip_file.writestr(chunk_filename, f.read())
+
+                            part_num += 1
+
+                output_filename = "Diva_Bolunmus_PPTX.zip"
                 mimetype = "application/zip"
 
             elif action == 'pdf_to_word':
@@ -159,10 +203,8 @@ def process_files():
                             result.save_files(out_pdf_path)
                             return out_pdf_path
                         except Exception:
-                            # API hatasında arka planda LibreOffice'e düş
                             return convert_office_to_pdf_local(in_office_path, temp_dir)
                     else:
-                        # API anahtarı yoksa doğrudan LibreOffice kullan
                         return convert_office_to_pdf_local(in_office_path, temp_dir)
 
                 if len(files) > 1:

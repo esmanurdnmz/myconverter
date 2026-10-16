@@ -16,7 +16,7 @@
             overflow-x: hidden;
         }
 
-        /* ✨ STICKER AYARLARI ✨ */
+        /* STICKER AYARLARI */
         .sticker {
             position: fixed;
             pointer-events: none;
@@ -55,7 +55,7 @@
         .controls {
             display: flex; flex-direction: column; gap: 15px; margin-bottom: 20px;
         }
-        select, button {
+        select, button, input[type="number"] {
             padding: 15px; font-size: 16px; font-weight: bold;
             border-radius: 10px; border: 2px solid #E91E63;
             background-color: white; color: #880E4F; cursor: pointer;
@@ -104,7 +104,13 @@
                 <option value="img_to_pdf">Resim (JPG/PNG) ➡️ PDF</option>
                 <option value="merge_pdf">PDF'leri Birleştir</option>
                 <option value="split_pdf">PDF'i Sayfalara Ayır</option>
+                <option value="split_pptx">PPTX Böl (Slayt Sayısına Göre)</option>
             </select>
+
+            <div id="chunk-container" style="display: none;">
+                <label style="font-weight: bold; color: #880E4F; display: block; margin-bottom: 5px;">🌸 Her kaç slaytta bir bölünsün?</label>
+                <input type="number" id="chunk-size" value="20" min="1" max="200" style="width: 100%; box-sizing: border-box;">
+            </div>
         </div>
 
         <div class="drop-zone" id="drop-zone">
@@ -128,18 +134,19 @@
         const fileList = document.getElementById('file-list');
         const submitBtn = document.getElementById('submit-btn');
         const actionSelect = document.getElementById('action-select');
+        const chunkContainer = document.getElementById('chunk-container');
         const progressWrapper = document.getElementById('progress-wrapper');
         const progressFill = document.getElementById('progress-fill');
         const errorAlert = document.getElementById('error-alert');
         let dataTransfer = new DataTransfer();
 
-        // İzin verilen dosya uzantıları haritası
         const validExtensions = {
             'office_to_pdf': ['.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.odt', '.ods', '.odp', '.rtf', '.csv', '.txt'],
             'pdf_to_word': ['.pdf'],
             'img_to_pdf': ['.jpg', '.jpeg', '.png', '.webp', '.bmp'],
             'merge_pdf': ['.pdf'],
-            'split_pdf': ['.pdf']
+            'split_pdf': ['.pdf'],
+            'split_pptx': ['.pptx', '.ppt']
         };
 
         function isValidFile(filename, action) {
@@ -154,9 +161,15 @@
         dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.classList.remove('dragover'); addFiles(e.dataTransfer.files); });
         fileInput.addEventListener('change', (e) => { addFiles(e.target.files); });
 
-        // İşlem türü değiştiğinde listedeki uyumsuz dosyaları otomatik temizler
         actionSelect.addEventListener('change', () => {
             const action = actionSelect.value;
+
+            if (action === 'split_pptx') {
+                chunkContainer.style.display = 'block';
+            } else {
+                chunkContainer.style.display = 'none';
+            }
+
             let newDt = new DataTransfer();
             let hasInvalid = false;
 
@@ -180,7 +193,6 @@
             }
         });
 
-        // Dosya eklendiği an kontrol edilir
         function addFiles(files) {
             const action = actionSelect.value;
             let invalidFiles = [];
@@ -238,6 +250,9 @@
 
             const formData = new FormData();
             formData.append('action', action);
+            if (action === 'split_pptx') {
+                formData.append('chunk_size', document.getElementById('chunk-size').value);
+            }
             for (let file of files) { formData.append('files', file); }
 
             progressWrapper.style.display = 'block'; progressFill.style.width = '50%'; errorAlert.style.display = 'none'; submitBtn.disabled = true;
@@ -245,36 +260,39 @@
             try {
                 const response = await fetch('/process', { method: 'POST', body: formData });
                 if (!response.ok) {
-    let errorMessage = "Sunucu hatası oluştu.";
-    try {
-        const text = await response.text();
-        try {
-            const errorData = JSON.parse(text);
-            errorMessage = errorData.error || errorMessage;
-        } catch(e) {
-            if (response.status === 504 || response.status === 502) {
-                errorMessage = "İşlem çok uzun sürdü (Zaman Aşımı)! Lütfen sunum içerisindeki resimlerin boyutunu küçültüp tekrar deneyin. 🌸";
-            } else if (response.status === 413) {
-                errorMessage = "Dosya boyutu çok büyük (Maks: 500 MB).";
-            } else {
-                errorMessage = "Sunucu yanıt vermedi, lütfen tekrar deneyin.";
-            }
-        }
-    } catch (e) {}
-    throw new Error(errorMessage);
-}
+                    let errorMessage = "Sunucu hatası oluştu.";
+                    try {
+                        const errorData = await response.json();
+                        errorMessage = errorData.error || errorMessage;
+                    } catch (e) {
+                        errorMessage = "Sunucu yanıt vermedi, lütfen tekrar deneyin.";
+                    }
+                    throw new Error(errorMessage);
+                }
 
                 progressFill.style.width = '100%';
                 const blob = await response.blob();
-                const downloadUrl = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
+                const reader = new FileReader();
 
-                const disposition = response.headers.get('Content-Disposition');
-                let filename = "Diva_Sonuc.pdf";
-                if (disposition && disposition.indexOf('filename=') !== -1) { filename = disposition.split('filename=')[1].replace(/"/g, ''); }
+                reader.onloadend = function() {
+                    const a = document.createElement('a');
+                    a.href = reader.result;
 
-                a.href = downloadUrl; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
-                document.getElementById('status-text').innerText = "🎉 İşlem Tamamlandı!";
+                    const disposition = response.headers.get('Content-Disposition');
+                    let filename = "Diva_Sonuc.pdf";
+                    if (disposition && disposition.indexOf('filename=') !== -1) {
+                        filename = disposition.split('filename=')[1].replace(/"/g, '');
+                    }
+
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    setTimeout(() => a.remove(), 1000);
+                    document.getElementById('status-text').innerText = "🎉 İşlem Tamamlandı!";
+                };
+
+                reader.readAsDataURL(blob);
+
             } catch (error) {
                 errorAlert.innerText = error.message; errorAlert.style.display = 'block'; progressWrapper.style.display = 'none';
             } finally {
