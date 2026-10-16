@@ -3,6 +3,8 @@ import tempfile
 import subprocess
 import platform
 import zipfile
+import os
+import convertapi
 from io import BytesIO
 from flask import Flask, render_template, request, send_file, jsonify
 from werkzeug.utils import secure_filename
@@ -117,57 +119,68 @@ def process_files():
                 output_filename = "Diva_Resimler.pdf"
                 mimetype = "application/pdf"
 
+
             elif action == 'office_to_pdf':
-                lo_path = get_libreoffice_cmd()
-                # LibreOffice kontrolü
-                cmd = [lo_path, "--headless", "--convert-to", "pdf", input_path, "--outdir", temp_dir]
+
+                # ConvertAPI anahtarını ortam değişkeninden alır
+
+                convertapi.api_secret = os.environ.get('CONVERTAPI_SECRET', 'BURAYA_SECRET_KEY_YAZABILIRSINIZ')
+
                 try:
-                    subprocess.run(cmd, check=True, capture_output=True, timeout=80)
-                except subprocess.TimeoutExpired:
-                    return jsonify({
-                                       "error": "Sunum dosyasını dönüştürmek çok uzun sürdü. Lütfen sunumdaki yüksek çözünürlüklü görselleri küçültüp tekrar deneyin."}), 400
-                except subprocess.CalledProcessError as cpe:
-                    return jsonify({"error": "Dosya dönüştürülürken bir hata oluştu."}), 500
 
-                if len(files) > 1:
-                    with zipfile.ZipFile(memory_file, "w") as zip_file:
-                        for file in files:
-                            input_path = os.path.join(temp_dir, secure_filename(file.filename))
-                            file.save(input_path)
-                            cmd = [lo_path, "--headless", "--convert-to", "pdf", input_path, "--outdir", temp_dir]
-                            subprocess.run(cmd, check=True, capture_output=True)
+                    if len(files) > 1:
 
-                            out_path = os.path.join(temp_dir,
-                                                    os.path.splitext(secure_filename(file.filename))[0] + ".pdf")
-                            if os.path.exists(out_path):
+                        with zipfile.ZipFile(memory_file, "w") as zip_file:
+
+                            for file in files:
+                                input_path = os.path.join(temp_dir, secure_filename(file.filename))
+
+                                file.save(input_path)
+
+                                # Cloud API üzerinden dönüştürme
+
+                                result = convertapi.convert('pdf', {'File': input_path})
+
+                                out_path = os.path.join(temp_dir,
+                                                        os.path.splitext(secure_filename(file.filename))[0] + ".pdf")
+
+                                result.save_files(out_path)
+
                                 with open(out_path, "rb") as f:
                                     zip_file.writestr(os.path.basename(out_path), f.read())
-                    output_filename = "Diva_Office_PDFler.zip"
-                    mimetype = "application/zip"
-                else:
-                    file = files[0]
-                    input_path = os.path.join(temp_dir, secure_filename(file.filename))
-                    file.save(input_path)
 
-                    cmd = [lo_path, "--headless", "--convert-to", "pdf", input_path, "--outdir", temp_dir]
-                    subprocess.run(cmd, check=True, capture_output=True)
+                        output_filename = "Diva_Office_PDFler.zip"
 
-                    out_path = os.path.join(temp_dir, os.path.splitext(secure_filename(file.filename))[0] + ".pdf")
-                    if os.path.exists(out_path):
+                        mimetype = "application/zip"
+
+                    else:
+
+                        file = files[0]
+
+                        input_path = os.path.join(temp_dir, secure_filename(file.filename))
+
+                        file.save(input_path)
+
+                        # Cloud API üzerinden dönüştürme
+
+                        result = convertapi.convert('pdf', {'File': input_path})
+
+                        out_path = os.path.join(temp_dir, os.path.splitext(secure_filename(file.filename))[0] + ".pdf")
+
+                        result.save_files(out_path)
+
                         with open(out_path, "rb") as f:
+
                             memory_file.write(f.read())
-                    output_filename = os.path.splitext(file.filename)[0] + "_Diva.pdf"
-                    mimetype = "application/pdf"
 
-            else:
-                return jsonify({"error": "Bilinmeyen işlem"}), 400
+                        output_filename = os.path.splitext(file.filename)[0] + "_Diva.pdf"
 
-            memory_file.seek(0)
-            return send_file(memory_file, download_name=output_filename, as_attachment=True, mimetype=mimetype)
+                        mimetype = "application/pdf"
 
-        except Exception as e:
-            return jsonify({"error": f"İşlem hatası: {str(e)}"}), 500
 
+                except Exception as api_err:
+
+                    return jsonify({"error": f"API Dönüştürme Hatası: {str(api_err)}"}), 500
 @app.route('/<path:filename>')
 def serve_sticker(filename):
     if filename.endswith('.png'):

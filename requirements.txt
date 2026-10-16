@@ -3,3 +3,4 @@ Werkzeug
 PyPDF2
 pdf2docx
 Pillow
+convertapi
