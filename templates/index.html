@@ -187,17 +187,27 @@
             const action = actionSelect.value;
             const files = fileInput.files;
 
+            const officeExts = ['.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.odt', '.ods', '.odp', '.rtf', '.csv', '.txt'];
+            const imgExts = ['.jpg', '.jpeg', '.png', '.webp', '.bmp'];
+
             for (let file of files) {
                 let name = file.name.toLowerCase();
+
                 if (action === 'pdf_to_word' || action === 'split_pdf' || action === 'merge_pdf') {
                     if (!name.endsWith('.pdf')) {
-                        errorAlert.innerText = `Hata: "${file.name}" bir PDF dosyası değil!`;
+                        errorAlert.innerText = `Hata: "${file.name}" bir PDF dosyası değil! 🌸`;
                         errorAlert.style.display = 'block';
                         return;
                     }
                 } else if (action === 'img_to_pdf') {
-                    if (!name.endsWith('.jpg') && !name.endsWith('.jpeg') && !name.endsWith('.png')) {
-                        errorAlert.innerText = `Hata: "${file.name}" bir resim dosyası değil!`;
+                    if (!imgExts.some(ext => name.endsWith(ext))) {
+                        errorAlert.innerText = `Hata: "${file.name}" bir resim (JPG/PNG) dosyası değil! 🌸`;
+                        errorAlert.style.display = 'block';
+                        return;
+                    }
+                } else if (action === 'office_to_pdf') {
+                    if (!officeExts.some(ext => name.endsWith(ext))) {
+                        errorAlert.innerText = `Hata: "${file.name}" geçerli bir Word, Excel veya PPTX dosyası değil! 🌸`;
                         errorAlert.style.display = 'block';
                         return;
                     }
