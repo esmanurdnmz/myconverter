@@ -11,8 +11,26 @@
             color: #880E4F;
             margin: 0; padding: 20px;
             display: flex; flex-direction: column; align-items: center;
+            min-height: 100vh;
+            position: relative;
+            overflow-x: hidden;
         }
-        h1, h2 { color: #D81B60; text-align: center; }
+        /* Stickerler için rastgele konum stilleri */
+        .sticker {
+            position: absolute;
+            width: 90px;
+            height: auto;
+            pointer-events: none;
+            opacity: 0.85;
+            z-index: 10;
+        }
+        .s1 { top: 30px; left: 40px; transform: rotate(-15deg); }
+        .s2 { top: 80px; right: 50px; transform: rotate(15deg); }
+        .s3 { bottom: 40px; left: 60px; transform: rotate(10deg); width: 110px; }
+        .s4 { bottom: 50px; right: 40px; transform: rotate(-10deg); width: 100px; }
+        .s5 { top: 45%; left: 15px; transform: rotate(5deg); width: 80px; }
+
+        h1, h2 { color: #D81B60; text-align: center; position: relative; z-index: 20; }
         .container {
             width: 100%; max-width: 800px;
             background-color: #F8BBD0;
@@ -20,6 +38,8 @@
             box-shadow: 0 10px 20px rgba(216, 27, 96, 0.2);
             border: 2px dashed #D81B60;
             margin-top: 20px;
+            position: relative;
+            z-index: 20;
         }
         .controls {
             display: flex; flex-direction: column; gap: 15px; margin-bottom: 20px;
@@ -59,6 +79,13 @@
     </style>
 </head>
 <body>
+
+    <!-- Karışık Yerleştirilmiş Stickerler -->
+    <img src="/Bratz.png" class="sticker s1" alt="Sticker">
+    <img src="/codecat.png" class="sticker s2" alt="Sticker">
+    <img src="/divacat.png" class="sticker s3" alt="Sticker">
+    <img src="/nazar.png" class="sticker s4" alt="Sticker">
+    <img src="/pccat.png" class="sticker s5" alt="Sticker">
 
     <h1>✨ @engineerdivaesmanur ✨</h1>
     <h2>Tatlı PDF İstasyonu 💖</h2>
@@ -160,18 +187,17 @@
             const action = actionSelect.value;
             const files = fileInput.files;
 
-            // Basit tür kontrolü
             for (let file of files) {
                 let name = file.name.toLowerCase();
                 if (action === 'pdf_to_word' || action === 'split_pdf' || action === 'merge_pdf') {
                     if (!name.endsWith('.pdf')) {
-                        errorAlert.innerText = `Hata: "${file.name}" bir PDF dosyası değil! Seçilen işlem için sadece PDF yüklemelisin.`;
+                        errorAlert.innerText = `Hata: "${file.name}" bir PDF dosyası değil!`;
                         errorAlert.style.display = 'block';
                         return;
                     }
                 } else if (action === 'img_to_pdf') {
                     if (!name.endsWith('.jpg') && !name.endsWith('.jpeg') && !name.endsWith('.png')) {
-                        errorAlert.innerText = `Hata: "${file.name}" bir resim (JPG/PNG) dosyası değil!`;
+                        errorAlert.innerText = `Hata: "${file.name}" bir resim dosyası değil!`;
                         errorAlert.style.display = 'block';
                         return;
                     }
@@ -191,20 +217,12 @@
 
             try {
                 const response = await fetch('/process', { method: 'POST', body: formData });
-
                 if (!response.ok) {
-                    let errorMessage = "Bir hata oluştu.";
-                    try {
-                        const errorData = await response.json();
-                        errorMessage = errorData.error || errorMessage;
-                    } catch (e) {
-                        errorMessage = response.status === 413 ? "Dosya boyutu çok büyük (Maks: 500 MB)." : "Sunucu hatası oluştu.";
-                    }
-                    throw new Error(errorMessage);
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || "Sunucu hatası.");
                 }
 
                 progressFill.style.width = '100%';
-
                 const blob = await response.blob();
                 const downloadUrl = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -220,16 +238,14 @@
                 document.body.appendChild(a);
                 a.click();
                 a.remove();
-
-                document.getElementById('status-text').innerText = "🎉 İşlem Tamamlandı! Dosyan iniyor...";
-
+                document.getElementById('status-text').innerText = "🎉 İşlem Tamamlandı!";
             } catch (error) {
                 errorAlert.innerText = error.message;
                 errorAlert.style.display = 'block';
                 progressWrapper.style.display = 'none';
             } finally {
                 submitBtn.disabled = false;
-                setTimeout(() => { progressWrapper.style.display = 'none'; progressFill.style.width = '0%'; document.getElementById('status-text').innerText = "Sihir gerçekleşiyor, lütfen bekle... ✨"; }, 3000);
+                setTimeout(() => { progressWrapper.style.display = 'none'; progressFill.style.width = '0%'; }, 3000);
             }
         });
     </script>

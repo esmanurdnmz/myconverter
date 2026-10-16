@@ -9,6 +9,7 @@ from werkzeug.utils import secure_filename
 from PyPDF2 import PdfMerger, PdfReader, PdfWriter
 from pdf2docx import Converter
 from PIL import Image
+from flask import send_from_directory
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500 MB Sınırı
@@ -162,6 +163,12 @@ def process_files():
         except Exception as e:
             return jsonify({"error": f"İşlem hatası: {str(e)}"}), 500
 
+@app.route('/<path:filename>')
+def serve_sticker(filename):
+    if filename.endswith('.png'):
+        return send_from_directory('.', filename)
+    return "Bulunamadı", 404
+
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    app.run(debug=True, port=5001)
