@@ -119,8 +119,11 @@ def process_files():
                 output_filename = "Diva_Resimler.pdf"
                 mimetype = "application/pdf"
 
+
             elif action == 'office_to_pdf':
+
                 api_secret = os.environ.get('CONVERTAPI_SECRET')
+
                 if not api_secret:
                     return jsonify({
                                        "error": "ConvertAPI Secret Key sunucuda tanımlanmamış! Lütfen Render Environment ayarlarını kontrol edin."}), 500
@@ -128,32 +131,56 @@ def process_files():
                 convertapi.api_secret = api_secret
 
                 if len(files) > 1:
+
                     with zipfile.ZipFile(memory_file, "w") as zip_file:
+
                         for file in files:
                             in_office_path = os.path.join(temp_dir, secure_filename(file.filename))
+
                             file.save(in_office_path)
 
-                            result = convertapi.convert('pdf', {'File': in_office_path})
+                            # Dosya formatını açıkça alıp ConvertAPI'ye bildiriyoruz
+
+                            file_ext = os.path.splitext(in_office_path)[1].lstrip('.').lower()
+
+                            result = convertapi.convert('pdf', {'File': in_office_path}, from_format=file_ext)
+
                             out_pdf_path = os.path.join(temp_dir,
                                                         os.path.splitext(secure_filename(file.filename))[0] + ".pdf")
+
                             result.save_files(out_pdf_path)
 
                             with open(out_pdf_path, "rb") as f:
                                 zip_file.writestr(os.path.basename(out_pdf_path), f.read())
+
                     output_filename = "Diva_Office_PDFler.zip"
+
                     mimetype = "application/zip"
+
                 else:
+
                     file = files[0]
+
                     in_office_path = os.path.join(temp_dir, secure_filename(file.filename))
+
                     file.save(in_office_path)
 
-                    result = convertapi.convert('pdf', {'File': in_office_path})
+                    # Dosya formatını açıkça alıp ConvertAPI'ye bildiriyoruz
+
+                    file_ext = os.path.splitext(in_office_path)[1].lstrip('.').lower()
+
+                    result = convertapi.convert('pdf', {'File': in_office_path}, from_format=file_ext)
+
                     out_pdf_path = os.path.join(temp_dir, os.path.splitext(secure_filename(file.filename))[0] + ".pdf")
+
                     result.save_files(out_pdf_path)
 
                     with open(out_pdf_path, "rb") as f:
+
                         memory_file.write(f.read())
+
                     output_filename = os.path.splitext(secure_filename(file.filename))[0] + "_Diva.pdf"
+
                     mimetype = "application/pdf"
 
             else:
