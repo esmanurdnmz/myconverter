@@ -15,20 +15,31 @@
             position: relative;
             overflow-x: hidden;
         }
-        /* Stickerler için rastgele konum stilleri */
+
+        /* ✨ STICKER AYARLARI ✨ */
         .sticker {
-            position: absolute;
-            width: 90px;
-            height: auto;
+            position: fixed;
             pointer-events: none;
-            opacity: 0.85;
-            z-index: 10;
+            opacity: 0.90;
+            z-index: 5;
+            transition: 0.3s;
         }
-        .s1 { top: 30px; left: 40px; transform: rotate(-15deg); }
-        .s2 { top: 80px; right: 50px; transform: rotate(15deg); }
-        .s3 { bottom: 40px; left: 60px; transform: rotate(10deg); width: 110px; }
-        .s4 { bottom: 50px; right: 40px; transform: rotate(-10deg); width: 100px; }
-        .s5 { top: 45%; left: 15px; transform: rotate(5deg); width: 80px; }
+
+        @media (min-width: 769px) {
+            .s1 { top: 10%; left: 15%; transform: rotate(-15deg); width: 160px; }
+            .s2 { top: 15%; right: 15%; transform: rotate(15deg); width: 140px; }
+            .s3 { bottom: 12%; left: 18%; transform: rotate(10deg); width: 170px; }
+            .s4 { bottom: 15%; right: 18%; transform: rotate(-10deg); width: 150px; }
+            .s5 { top: 45%; left: 10%; transform: rotate(5deg); width: 130px; }
+        }
+
+        @media (max-width: 768px) {
+            .s1 { top: 2%; left: 2%; transform: rotate(-12deg); width: 80px; }
+            .s2 { top: 4%; right: 2%; transform: rotate(12deg); width: 75px; }
+            .s3 { bottom: 2%; left: 4%; transform: rotate(8deg); width: 90px; }
+            .s4 { bottom: 4%; right: 4%; transform: rotate(-8deg); width: 85px; }
+            .s5 { top: 50%; left: -10px; transform: rotate(5deg); width: 70px; opacity: 0.6; }
+        }
 
         h1, h2 { color: #D81B60; text-align: center; position: relative; z-index: 20; }
         .container {
@@ -49,9 +60,7 @@
             border-radius: 10px; border: 2px solid #E91E63;
             background-color: white; color: #880E4F; cursor: pointer;
         }
-        button {
-            background-color: #F06292; color: white; transition: 0.3s;
-        }
+        button { background-color: #F06292; color: white; transition: 0.3s; }
         button:hover { background-color: #E91E63; }
 
         .drop-zone {
@@ -66,21 +75,16 @@
             display: flex; justify-content: space-between; align-items: center;
             background: rgba(255, 255, 255, 0.7); padding: 5px 10px; border-radius: 5px; margin-bottom: 5px;
         }
-        .remove-file {
-            color: #d32f2f; cursor: pointer; font-weight: bold; border: none; background: none; font-size: 16px;
-        }
-
+        .remove-file { color: #d32f2f; cursor: pointer; font-weight: bold; border: none; background: none; font-size: 16px; }
         .progress-wrapper { display: none; margin-top: 20px; }
         .progress-bar { width: 100%; background-color: #fce4ec; border-radius: 10px; overflow: hidden; border: 1px solid #D81B60; }
         .progress-fill { width: 0%; height: 20px; background-color: #E91E63; transition: width 0.5s; }
         .status-text { text-align: center; margin-top: 10px; font-weight: bold; }
-
         .alert { display: none; padding: 15px; background-color: #ffcdd2; color: #b71c1c; border-radius: 10px; margin-bottom: 20px; text-align: center; font-weight: bold;}
     </style>
 </head>
 <body>
 
-    <!-- Karışık Yerleştirilmiş Stickerler -->
     <img src="/Bratz.png" class="sticker s1" alt="Sticker">
     <img src="/codecat.png" class="sticker s2" alt="Sticker">
     <img src="/divacat.png" class="sticker s3" alt="Sticker">
@@ -127,38 +131,83 @@
         const progressWrapper = document.getElementById('progress-wrapper');
         const progressFill = document.getElementById('progress-fill');
         const errorAlert = document.getElementById('error-alert');
-
         let dataTransfer = new DataTransfer();
+
+        // İzin verilen dosya uzantıları haritası
+        const validExtensions = {
+            'office_to_pdf': ['.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.odt', '.ods', '.odp', '.rtf', '.csv', '.txt'],
+            'pdf_to_word': ['.pdf'],
+            'img_to_pdf': ['.jpg', '.jpeg', '.png', '.webp', '.bmp'],
+            'merge_pdf': ['.pdf'],
+            'split_pdf': ['.pdf']
+        };
+
+        function isValidFile(filename, action) {
+            const name = filename.toLowerCase();
+            const allowed = validExtensions[action] || [];
+            return allowed.some(ext => name.endsWith(ext));
+        }
 
         dropZone.addEventListener('click', () => fileInput.click());
         dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
         dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
-        dropZone.addEventListener('drop', (e) => {
-            e.preventDefault(); dropZone.classList.remove('dragover');
-            addFiles(e.dataTransfer.files);
-        });
+        dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.classList.remove('dragover'); addFiles(e.dataTransfer.files); });
+        fileInput.addEventListener('change', (e) => { addFiles(e.target.files); });
 
-        fileInput.addEventListener('change', (e) => {
-            addFiles(e.target.files);
-        });
+        // İşlem türü değiştiğinde listedeki uyumsuz dosyaları otomatik temizler
+        actionSelect.addEventListener('change', () => {
+            const action = actionSelect.value;
+            let newDt = new DataTransfer();
+            let hasInvalid = false;
 
-        function addFiles(files) {
-            for (let file of files) {
-                dataTransfer.items.add(file);
+            for (let file of dataTransfer.files) {
+                if (isValidFile(file.name, action)) {
+                    newDt.items.add(file);
+                } else {
+                    hasInvalid = true;
+                }
             }
+
+            dataTransfer = newDt;
             fileInput.files = dataTransfer.files;
             updateFileList();
-            errorAlert.style.display = 'none';
+
+            if (hasInvalid) {
+                errorAlert.innerText = "Seçilen işlem değiştirildiği için uyumsuz dosyalar listeden kaldırıldı! 🌸";
+                errorAlert.style.display = 'block';
+            } else {
+                errorAlert.style.display = 'none';
+            }
+        });
+
+        // Dosya eklendiği an kontrol edilir
+        function addFiles(files) {
+            const action = actionSelect.value;
+            let invalidFiles = [];
+
+            for (let file of files) {
+                if (isValidFile(file.name, action)) {
+                    dataTransfer.items.add(file);
+                } else {
+                    invalidFiles.push(file.name);
+                }
+            }
+
+            fileInput.files = dataTransfer.files;
+            updateFileList();
+
+            if (invalidFiles.length > 0) {
+                errorAlert.innerText = `Hata: "${invalidFiles.join(', ')}" seçtiğin işleme uygun formatta değil ve eklenmedi! 🌸`;
+                errorAlert.style.display = 'block';
+            } else {
+                errorAlert.style.display = 'none';
+            }
         }
 
         function removeFile(index) {
             let dt = new DataTransfer();
             let files = fileInput.files;
-            for (let i = 0; i < files.length; i++) {
-                if (i !== index) {
-                    dt.items.add(files[i]);
-                }
-            }
+            for (let i = 0; i < files.length; i++) { if (i !== index) { dt.items.add(files[i]); } }
             dataTransfer = dt;
             fileInput.files = dataTransfer.files;
             updateFileList();
@@ -166,10 +215,7 @@
         }
 
         function updateFileList() {
-            if (fileInput.files.length === 0) {
-                fileList.innerHTML = "Henüz dosya seçilmedi.";
-                return;
-            }
+            if (fileInput.files.length === 0) { fileList.innerHTML = "Henüz dosya seçilmedi."; return; }
             let html = "";
             for (let i = 0; i < fileInput.files.length; i++) {
                 html += `<div class="file-item"><span>📄 ${fileInput.files[i].name}</span> <button class="remove-file" onclick="removeFile(${i})">❌</button></div>`;
@@ -178,59 +224,27 @@
         }
 
         submitBtn.addEventListener('click', async () => {
-            if (fileInput.files.length === 0) {
-                errorAlert.innerText = "Lütfen önce dosya yükle 🌸";
-                errorAlert.style.display = 'block';
-                return;
-            }
-
+            if (fileInput.files.length === 0) { errorAlert.innerText = "Lütfen önce geçerli bir dosya yükle 🌸"; errorAlert.style.display = 'block'; return; }
             const action = actionSelect.value;
             const files = fileInput.files;
 
-            const officeExts = ['.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.odt', '.ods', '.odp', '.rtf', '.csv', '.txt'];
-            const imgExts = ['.jpg', '.jpeg', '.png', '.webp', '.bmp'];
-
             for (let file of files) {
-                let name = file.name.toLowerCase();
-
-                if (action === 'pdf_to_word' || action === 'split_pdf' || action === 'merge_pdf') {
-                    if (!name.endsWith('.pdf')) {
-                        errorAlert.innerText = `Hata: "${file.name}" bir PDF dosyası değil! 🌸`;
-                        errorAlert.style.display = 'block';
-                        return;
-                    }
-                } else if (action === 'img_to_pdf') {
-                    if (!imgExts.some(ext => name.endsWith(ext))) {
-                        errorAlert.innerText = `Hata: "${file.name}" bir resim (JPG/PNG) dosyası değil! 🌸`;
-                        errorAlert.style.display = 'block';
-                        return;
-                    }
-                } else if (action === 'office_to_pdf') {
-                    if (!officeExts.some(ext => name.endsWith(ext))) {
-                        errorAlert.innerText = `Hata: "${file.name}" geçerli bir Word, Excel veya PPTX dosyası değil! 🌸`;
-                        errorAlert.style.display = 'block';
-                        return;
-                    }
+                if (!isValidFile(file.name, action)) {
+                    errorAlert.innerText = `Hata: "${file.name}" bu işlem için uygun formatta değil! 🌸`;
+                    errorAlert.style.display = 'block';
+                    return;
                 }
             }
 
             const formData = new FormData();
             formData.append('action', action);
-            for (let file of files) {
-                formData.append('files', file);
-            }
+            for (let file of files) { formData.append('files', file); }
 
-            progressWrapper.style.display = 'block';
-            progressFill.style.width = '50%';
-            errorAlert.style.display = 'none';
-            submitBtn.disabled = true;
+            progressWrapper.style.display = 'block'; progressFill.style.width = '50%'; errorAlert.style.display = 'none'; submitBtn.disabled = true;
 
             try {
                 const response = await fetch('/process', { method: 'POST', body: formData });
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || "Sunucu hatası.");
-                }
+                if (!response.ok) { const errorData = await response.json(); throw new Error(errorData.error || "Sunucu hatası."); }
 
                 progressFill.style.width = '100%';
                 const blob = await response.blob();
@@ -239,20 +253,12 @@
 
                 const disposition = response.headers.get('Content-Disposition');
                 let filename = "Diva_Sonuc.pdf";
-                if (disposition && disposition.indexOf('filename=') !== -1) {
-                    filename = disposition.split('filename=')[1].replace(/"/g, '');
-                }
+                if (disposition && disposition.indexOf('filename=') !== -1) { filename = disposition.split('filename=')[1].replace(/"/g, ''); }
 
-                a.href = downloadUrl;
-                a.download = filename;
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
+                a.href = downloadUrl; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
                 document.getElementById('status-text').innerText = "🎉 İşlem Tamamlandı!";
             } catch (error) {
-                errorAlert.innerText = error.message;
-                errorAlert.style.display = 'block';
-                progressWrapper.style.display = 'none';
+                errorAlert.innerText = error.message; errorAlert.style.display = 'block'; progressWrapper.style.display = 'none';
             } finally {
                 submitBtn.disabled = false;
                 setTimeout(() => { progressWrapper.style.display = 'none'; progressFill.style.width = '0%'; }, 3000);
