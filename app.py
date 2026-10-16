@@ -1,17 +1,18 @@
 import os
 import tempfile
-import subprocess
 import platform
 import zipfile
-import os
-import convertapi
+import warnings
 from io import BytesIO
-from flask import Flask, render_template, request, send_file, jsonify
+from flask import Flask, render_template, request, send_file, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
 from PyPDF2 import PdfMerger, PdfReader, PdfWriter
 from pdf2docx import Converter
 from PIL import Image
-from flask import send_from_directory
+import convertapi
+
+# Uyarı mesajlarını gizle
+warnings.filterwarnings("ignore")
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500 MB Sınırı
@@ -22,10 +23,11 @@ def request_entity_too_large(error):
     return jsonify({"error": "Dosyalar çok büyük! Maksimum 500 MB yükleyebilirsiniz."}), 413
 
 
-def get_libreoffice_cmd():
-    if platform.system() == "Darwin":
-        return "/Applications/LibreOffice.app/Contents/MacOS/soffice"
-    return "libreoffice"
+@app.route('/<path:filename>')
+def serve_sticker(filename):
+    if filename.endswith('.png'):
+        return send_from_directory('.', filename)
+    return "Bulunamadı", 404
 
 
 @app.route('/')
@@ -59,7 +61,6 @@ def process_files():
                 mimetype = "application/pdf"
 
             elif action == 'split_pdf':
-                # Birden fazla PDF yüklendiyse hepsini ayırıp ZIP içine atalım
                 with zipfile.ZipFile(memory_file, "w") as zip_file:
                     for file in files:
                         reader = PdfReader(file)
@@ -74,35 +75,34 @@ def process_files():
                 mimetype = "application/zip"
 
             elif action == 'pdf_to_word':
-                # Birden fazla PDF yüklendiyse hepsini Word'e çevirip ZIP yapalım
                 if len(files) > 1:
                     with zipfile.ZipFile(memory_file, "w") as zip_file:
                         for file in files:
-                            input_path = os.path.join(temp_dir, secure_filename(file.filename))
-                            file.save(input_path)
-                            out_path = input_path.rsplit('.', 1)[0] + ".docx"
+                            in_pdf_path = os.path.join(temp_dir, secure_filename(file.filename))
+                            file.save(in_pdf_path)
+                            out_docx_path = os.path.splitext(in_pdf_path)[0] + ".docx"
 
-                            cv = Converter(input_path)
-                            cv.convert(out_path, start=0, end=None)
+                            cv = Converter(in_pdf_path)
+                            cv.convert(out_docx_path, start=0, end=None)
                             cv.close()
 
-                            with open(out_path, "rb") as f:
-                                zip_file.writestr(os.path.basename(out_path), f.read())
+                            with open(out_docx_path, "rb") as f:
+                                zip_file.writestr(os.path.basename(out_docx_path), f.read())
                     output_filename = "Diva_Word_Dosyalari.zip"
                     mimetype = "application/zip"
                 else:
                     file = files[0]
-                    input_path = os.path.join(temp_dir, secure_filename(file.filename))
-                    out_path = input_path.rsplit('.', 1)[0] + ".docx"
-                    file.save(input_path)
+                    in_pdf_path = os.path.join(temp_dir, secure_filename(file.filename))
+                    file.save(in_pdf_path)
+                    out_docx_path = os.path.splitext(in_pdf_path)[0] + ".docx"
 
-                    cv = Converter(input_path)
-                    cv.convert(out_path, start=0, end=None)
+                    cv = Converter(in_pdf_path)
+                    cv.convert(out_docx_path, start=0, end=None)
                     cv.close()
 
-                    with open(out_path, "rb") as f:
+                    with open(out_docx_path, "rb") as f:
                         memory_file.write(f.read())
-                    output_filename = file.filename.rsplit('.', 1)[0] + "_Diva.docx"
+                    output_filename = os.path.splitext(secure_filename(file.filename))[0] + "_Diva.docx"
                     mimetype = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
             elif action == 'img_to_pdf':
@@ -119,73 +119,51 @@ def process_files():
                 output_filename = "Diva_Resimler.pdf"
                 mimetype = "application/pdf"
 
-
             elif action == 'office_to_pdf':
+                api_secret = os.environ.get('CONVERTAPI_SECRET')
+                if not api_secret:
+                    return jsonify({
+                                       "error": "ConvertAPI Secret Key sunucuda tanımlanmamış! Lütfen Render Environment ayarlarını kontrol edin."}), 500
 
-                # ConvertAPI anahtarını ortam değişkeninden alır
+                convertapi.api_secret = api_secret
 
-                convertapi.api_secret = os.environ.get('CONVERTAPI_SECRET', 'BURAYA_SECRET_KEY_YAZABILIRSINIZ')
+                if len(files) > 1:
+                    with zipfile.ZipFile(memory_file, "w") as zip_file:
+                        for file in files:
+                            in_office_path = os.path.join(temp_dir, secure_filename(file.filename))
+                            file.save(in_office_path)
 
-                try:
-
-                    if len(files) > 1:
-
-                        with zipfile.ZipFile(memory_file, "w") as zip_file:
-
-                            for file in files:
-                                input_path = os.path.join(temp_dir, secure_filename(file.filename))
-
-                                file.save(input_path)
-
-                                # Cloud API üzerinden dönüştürme
-
-                                result = convertapi.convert('pdf', {'File': input_path})
-
-                                out_path = os.path.join(temp_dir,
+                            result = convertapi.convert('pdf', {'File': in_office_path})
+                            out_pdf_path = os.path.join(temp_dir,
                                                         os.path.splitext(secure_filename(file.filename))[0] + ".pdf")
+                            result.save_files(out_pdf_path)
 
-                                result.save_files(out_path)
+                            with open(out_pdf_path, "rb") as f:
+                                zip_file.writestr(os.path.basename(out_pdf_path), f.read())
+                    output_filename = "Diva_Office_PDFler.zip"
+                    mimetype = "application/zip"
+                else:
+                    file = files[0]
+                    in_office_path = os.path.join(temp_dir, secure_filename(file.filename))
+                    file.save(in_office_path)
 
-                                with open(out_path, "rb") as f:
-                                    zip_file.writestr(os.path.basename(out_path), f.read())
+                    result = convertapi.convert('pdf', {'File': in_office_path})
+                    out_pdf_path = os.path.join(temp_dir, os.path.splitext(secure_filename(file.filename))[0] + ".pdf")
+                    result.save_files(out_pdf_path)
 
-                        output_filename = "Diva_Office_PDFler.zip"
+                    with open(out_pdf_path, "rb") as f:
+                        memory_file.write(f.read())
+                    output_filename = os.path.splitext(secure_filename(file.filename))[0] + "_Diva.pdf"
+                    mimetype = "application/pdf"
 
-                        mimetype = "application/zip"
+            else:
+                return jsonify({"error": "Bilinmeyen işlem"}), 400
 
-                    else:
+            memory_file.seek(0)
+            return send_file(memory_file, download_name=output_filename, as_attachment=True, mimetype=mimetype)
 
-                        file = files[0]
-
-                        input_path = os.path.join(temp_dir, secure_filename(file.filename))
-
-                        file.save(input_path)
-
-                        # Cloud API üzerinden dönüştürme
-
-                        result = convertapi.convert('pdf', {'File': input_path})
-
-                        out_path = os.path.join(temp_dir, os.path.splitext(secure_filename(file.filename))[0] + ".pdf")
-
-                        result.save_files(out_path)
-
-                        with open(out_path, "rb") as f:
-
-                            memory_file.write(f.read())
-
-                        output_filename = os.path.splitext(file.filename)[0] + "_Diva.pdf"
-
-                        mimetype = "application/pdf"
-
-
-                except Exception as api_err:
-
-                    return jsonify({"error": f"API Dönüştürme Hatası: {str(api_err)}"}), 500
-@app.route('/<path:filename>')
-def serve_sticker(filename):
-    if filename.endswith('.png'):
-        return send_from_directory('.', filename)
-    return "Bulunamadı", 404
+        except Exception as e:
+            return jsonify({"error": f"İşlem hatası: {str(e)}"}), 500
 
 
 if __name__ == '__main__':
