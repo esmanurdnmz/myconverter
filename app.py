@@ -1,5 +1,6 @@
 import os
 import tempfile
+import subprocess
 import platform
 import zipfile
 import warnings
@@ -21,6 +22,25 @@ app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500 MB Sınırı
 @app.errorhandler(413)
 def request_entity_too_large(error):
     return jsonify({"error": "Dosyalar çok büyük! Maksimum 500 MB yükleyebilirsiniz."}), 413
+
+
+def get_libreoffice_cmd():
+    if platform.system() == "Darwin":
+        return "/Applications/LibreOffice.app/Contents/MacOS/soffice"
+    return "libreoffice"
+
+
+def convert_office_to_pdf_local(input_path, temp_dir):
+    """API çalışmadığında veya anahtar olmadığında devreye giren yerel motor."""
+    lo_path = get_libreoffice_cmd()
+    cmd = [
+        lo_path, "--headless", "--norestore", "--nofirststartwizard",
+        "--nologo", "--nolockcheck", "--convert-to", "pdf",
+        input_path, "--outdir", temp_dir
+    ]
+    subprocess.run(cmd, check=True, capture_output=True, timeout=90)
+    out_path = os.path.splitext(input_path)[0] + ".pdf"
+    return out_path
 
 
 @app.route('/<path:filename>')
@@ -119,68 +139,46 @@ def process_files():
                 output_filename = "Diva_Resimler.pdf"
                 mimetype = "application/pdf"
 
-
             elif action == 'office_to_pdf':
-
                 api_secret = os.environ.get('CONVERTAPI_SECRET')
 
-                if not api_secret:
-                    return jsonify({
-                                       "error": "ConvertAPI Secret Key sunucuda tanımlanmamış! Lütfen Render Environment ayarlarını kontrol edin."}), 500
+                if api_secret:
+                    convertapi.api_credentials = api_secret
+                    convertapi.api_secret = api_secret
 
-                convertapi.api_secret = api_secret
-
-                if len(files) > 1:
-
-                    with zipfile.ZipFile(memory_file, "w") as zip_file:
-
-                        for file in files:
-                            in_office_path = os.path.join(temp_dir, secure_filename(file.filename))
-
-                            file.save(in_office_path)
-
-                            # Dosya formatını açıkça alıp ConvertAPI'ye bildiriyoruz
-
-                            file_ext = os.path.splitext(in_office_path)[1].lstrip('.').lower()
-
-                            result = convertapi.convert('pdf', {'File': in_office_path}, from_format=file_ext)
-
-                            out_pdf_path = os.path.join(temp_dir,
-                                                        os.path.splitext(secure_filename(file.filename))[0] + ".pdf")
-
-                            result.save_files(out_pdf_path)
-
-                            with open(out_pdf_path, "rb") as f:
-                                zip_file.writestr(os.path.basename(out_pdf_path), f.read())
-
-                    output_filename = "Diva_Office_PDFler.zip"
-
-                    mimetype = "application/zip"
-
-                else:
-
-                    file = files[0]
-
-                    in_office_path = os.path.join(temp_dir, secure_filename(file.filename))
-
-                    file.save(in_office_path)
-
-                    # Dosya formatını açıkça alıp ConvertAPI'ye bildiriyoruz
-
+                def convert_single_file(file_obj):
+                    in_office_path = os.path.join(temp_dir, secure_filename(file_obj.filename))
+                    file_obj.save(in_office_path)
                     file_ext = os.path.splitext(in_office_path)[1].lstrip('.').lower()
 
-                    result = convertapi.convert('pdf', {'File': in_office_path}, from_format=file_ext)
+                    if api_secret:
+                        try:
+                            result = convertapi.convert('pdf', {'File': in_office_path}, from_format=file_ext)
+                            out_pdf_path = os.path.join(temp_dir, os.path.splitext(secure_filename(file_obj.filename))[
+                                0] + ".pdf")
+                            result.save_files(out_pdf_path)
+                            return out_pdf_path
+                        except Exception:
+                            # API hatasında arka planda LibreOffice'e düş
+                            return convert_office_to_pdf_local(in_office_path, temp_dir)
+                    else:
+                        # API anahtarı yoksa doğrudan LibreOffice kullan
+                        return convert_office_to_pdf_local(in_office_path, temp_dir)
 
-                    out_pdf_path = os.path.join(temp_dir, os.path.splitext(secure_filename(file.filename))[0] + ".pdf")
-
-                    result.save_files(out_pdf_path)
-
-                    with open(out_pdf_path, "rb") as f:
-
+                if len(files) > 1:
+                    with zipfile.ZipFile(memory_file, "w") as zip_file:
+                        for file in files:
+                            out_pdf = convert_single_file(file)
+                            with open(out_pdf, "rb") as f:
+                                zip_file.writestr(os.path.basename(out_pdf), f.read())
+                    output_filename = "Diva_Office_PDFler.zip"
+                    mimetype = "application/zip"
+                else:
+                    file = files[0]
+                    out_pdf = convert_single_file(file)
+                    with open(out_pdf, "rb") as f:
                         memory_file.write(f.read())
-
                     output_filename = os.path.splitext(secure_filename(file.filename))[0] + "_Diva.pdf"
-
                     mimetype = "application/pdf"
 
             else:
